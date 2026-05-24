@@ -101,8 +101,18 @@ namespace Flow.Plugin.VSCodeWorkspaces.WorkspacesHelper
                     }
 
                     // for vscode v1.64.0 or later
+                    var sharedStoragePath = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                        ".vscode-shared",
+                        "sharedStorage",
+                        "state.vscdb");
+                    var legacyStoragePath = Path.Combine(vscodeInstance.AppData, "User", "globalStorage", "state.vscdb");
+                    var storagePath = File.Exists(sharedStoragePath) ? sharedStoragePath : legacyStoragePath;
+                    if (!File.Exists(storagePath))
+                        continue;
+
                     using var connection = new SqliteConnection(
-                        $"Data Source={vscodeInstance.AppData}/User/globalStorage/state.vscdb;mode=readonly;cache=shared;");
+                        $"Data Source={storagePath};mode=readonly;cache=shared;");
                     connection.Open();
                     var command = connection.CreateCommand();
                     command.CommandText = "SELECT value FROM ItemTable where key = 'history.recentlyOpenedPathsList'";
