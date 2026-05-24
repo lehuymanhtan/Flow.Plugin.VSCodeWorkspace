@@ -29,7 +29,7 @@ jobs:
           7z a -tzip "Flow.Plugin.VSCodeWorkspaces-${{steps.version.outputs.prop}}.zip" "./Flow.Plugin.VSCodeWorkspaces-${{steps.version.outputs.prop}}/*"
           rm -r "Flow.Plugin.VSCodeWorkspaces-${{steps.version.outputs.prop}}"
       - name: Publish
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: "Flow.Plugin.VSCodeWorkspaces*.zip"
           tag_name: "v${{steps.version.outputs.prop}}"
