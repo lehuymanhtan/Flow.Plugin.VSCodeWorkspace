@@ -2,6 +2,7 @@
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Generic;
 
 namespace Flow.Plugin.VSCodeWorkspaces.SshConfigParser
@@ -38,7 +39,7 @@ namespace Flow.Plugin.VSCodeWorkspaces.SshConfigParser
             set => this[nameof(ForwardAgent)] = value;
         }
 
-        internal Dictionary<string, object> Properties { get; } = new Dictionary<string, object>();
+        internal Dictionary<string, object> Properties { get; } = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
         public object this[string key]
         {

@@ -2,18 +2,14 @@
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text.RegularExpressions;
 
 namespace Flow.Plugin.VSCodeWorkspaces.SshConfigParser
 {
     public class SshConfig
     {
-        private static readonly Regex _sshConfig = new Regex(@"^(\w[\s\S]*?\w)$(?=(?:\s+^\w|\z))", RegexOptions.Multiline);
-        private static readonly Regex _keyValue = new Regex(@"(\w+\s\S+)", RegexOptions.Multiline);
-
         public static IEnumerable<SshHost> ParseFile(string path)
         {
             return Parse(File.ReadAllText(path));
@@ -21,24 +17,113 @@ namespace Flow.Plugin.VSCodeWorkspaces.SshConfigParser
 
         public static IEnumerable<SshHost> Parse(string str)
         {
-            str = str.Replace('\r', '\0');
+            if (string.IsNullOrWhiteSpace(str))
+                return new List<SshHost>();
+
             var list = new List<SshHost>();
-            foreach (Match match in _sshConfig.Matches(str))
+            using var reader = new StringReader(str);
+            SshHost currentHost = null;
+            string line;
+            while ((line = reader.ReadLine()) != null)
             {
-                var sshHost = new SshHost();
-                string content = match.Groups.Values.ToList()[0].Value;
-                foreach (Match match1 in _keyValue.Matches(content))
+                var trimmed = line.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("#", StringComparison.Ordinal))
+                    continue;
+
+                trimmed = StripInlineComment(trimmed);
+                if (string.IsNullOrWhiteSpace(trimmed))
+                    continue;
+
+                if (!TryParseKeyValue(trimmed, out var key, out var value))
+                    continue;
+
+                if (key.Equals("Host", StringComparison.OrdinalIgnoreCase))
                 {
-                    var split = match1.Value.Split(" ");
-                    var key = split[0];
-                    var value = split[1];
-                    sshHost.Properties[key] = value;
+                    currentHost = new SshHost();
+                    list.Add(currentHost);
                 }
 
-                list.Add(sshHost);
+                if (currentHost == null)
+                    continue;
+
+                currentHost.Properties[key] = value;
             }
 
             return list;
+        }
+
+        private static string StripInlineComment(string line)
+        {
+            var inQuotes = false;
+            var quoteChar = '\0';
+            for (var i = 0; i < line.Length; i++)
+            {
+                var ch = line[i];
+                if (ch == '"' || ch == '\'')
+                {
+                    if (!inQuotes)
+                    {
+                        inQuotes = true;
+                        quoteChar = ch;
+                    }
+                    else if (quoteChar == ch)
+                    {
+                        inQuotes = false;
+                    }
+                }
+                else if (ch == '#' && !inQuotes)
+                {
+                    return line.Substring(0, i).TrimEnd();
+                }
+            }
+
+            return line;
+        }
+
+        private static bool TryParseKeyValue(string line, out string key, out string value)
+        {
+            key = string.Empty;
+            value = string.Empty;
+
+            var index = 0;
+            while (index < line.Length && char.IsWhiteSpace(line[index]))
+                index++;
+
+            if (index >= line.Length)
+                return false;
+
+            var keyStart = index;
+            while (index < line.Length && !char.IsWhiteSpace(line[index]))
+                index++;
+
+            if (index == keyStart)
+                return false;
+
+            key = line.Substring(keyStart, index - keyStart);
+
+            while (index < line.Length && char.IsWhiteSpace(line[index]))
+                index++;
+
+            if (index >= line.Length)
+                return false;
+
+            if (line[index] == '"' || line[index] == '\'')
+            {
+                var quote = line[index];
+                index++;
+                var valueStart = index;
+                while (index < line.Length && line[index] != quote)
+                    index++;
+                value = line.Substring(valueStart, index - valueStart);
+                return true;
+            }
+
+            var unquotedStart = index;
+            while (index < line.Length && !char.IsWhiteSpace(line[index]))
+                index++;
+
+            value = line.Substring(unquotedStart, index - unquotedStart);
+            return true;
         }
     }
 }
